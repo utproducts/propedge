@@ -349,7 +349,7 @@ async function fetchLiveProps(forceRefresh){
 // ===== UTILS =====
 function calcPay(o,a){const v=parseInt(o);return v>0?Math.round(a*(v/100)):Math.round(a*(100/Math.abs(v)));}
 function toast(i,t){const c=document.getElementById('tc');const e=document.createElement('div');e.className='toast';e.innerHTML=`<span class="toast-i">${i}</span><span class="toast-t">${t}</span>`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}
-async function sendSMS(to,body){if(!SMS.on||!SMS.sid||!to)return;try{await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SMS.sid}/Messages.json`,{method:'POST',headers:{'Authorization':'Basic '+btoa(SMS.sid+':'+SMS.auth),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({To:to,From:SMS.from,Body:body})});}catch(e){}}
+async function sendSMS(to,body){try{await fetch('/api/sms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:body})});}catch(e){console.warn('SMS error:',e);}}
 
 // ===== RENDER =====
 function render(){
@@ -526,7 +526,7 @@ function confirmBet(id){
   const bet={description:`${p.player} ${p.prop}`,amount,odds:p.bestOdds,book,payout:pay,sport:p.sport,game:p.game,confidence:p.score,tier:p.tier,betType:p.betType,date:new Date().toISOString(),result:'pending',pnl:0};
   S.bets.push(bet);AI.track(p.player,p.sport,p.betType,'bet',p.score);save();closeM();
   toast('✅',`${p.player} — $${amount} logged`);
-  if(SMS.on){const msg=`🎯 PropEdge LIVE\n${bet.description}\n${bet.odds} @ ${bet.book}\n$${amount} → $${pay}\nScore: ${bet.confidence}/100`;[SMS.chad,SMS.blake,SMS.noah].forEach(n=>sendSMS(n,msg));}
+  const msg=`🎯 PropEdge LIVE\n${bet.description}\n${bet.odds} @ ${bet.book}\n$${amount} → $${pay}\nScore: ${bet.confidence}/100`;sendSMS(null,msg);
   render();
 }
 function resolve(i,res){
