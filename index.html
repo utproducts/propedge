@@ -391,7 +391,7 @@ function render(){
       <div class="pc-ex ${open?'open':''}"><div class="pc-exi">
         <div class="hit-bar-row"><div class="hit-bar"><div class="hit-fill ${hc}" style="width:${hits*10}%"></div></div><div class="hit-pct ${hc}">${hits}/10</div></div>
         <div style="font-size:10px;color:var(--t3);margin-top:4px">AVG: <span style="color:${parseFloat(avg)>=line?'var(--accent)':'var(--red)'}; font-weight:700">${avg}</span> vs Line: ${line}</div>
-        <table class="stbl"><thead><tr><th>Date</th><th>Opp</th><th>Stat</th><th></th></tr></thead><tbody>${p.last10.map(g=>`<tr><td style="color:var(--t4);font-size:9px">${(g.date.getMonth()+1)}/${g.date.getDate()}</td><td>${g.opponent}</td><td style="color:${g.hit?'var(--accent)':'var(--red)'};font-weight:${g.hit?700:600}">${g.statValue}</td><td>${g.hit?'<span class="hit">✓</span>':'<span class="miss">✗</span>'}</td></tr>`).join('')}</tbody></table>
+        <table class="stbl"><thead><tr><th>Date</th><th>Opp</th><th>Stat</th><th></th></tr></thead><tbody>${p.last10.map(g=>{const d=new Date(g.date);return`<tr><td style="color:var(--t4);font-size:9px">${(d.getMonth()+1)}/${d.getDate()}</td><td>${g.opponent}</td><td style="color:${g.hit?'var(--accent)':'var(--red)'};font-weight:${g.hit?700:600}">${g.statValue}</td><td>${g.hit?'<span class="hit">✓</span>':'<span class="miss">✗</span>'}</td></tr>`;}).join('')}</tbody></table>
         ${p.reasons.length>0?`<div style="font-size:10px;color:var(--t3);margin-top:8px;padding:6px 8px;background:var(--bg);border-radius:6px">💡 ${p.reasons.slice(0,3).join(' • ')}</div>`:''}
       </div></div>
       <div class="pc-bet" onclick="event.stopPropagation();openM('${p.id}')">💰 Bet · 1 Unit ($${u})</div>
