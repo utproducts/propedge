@@ -277,7 +277,7 @@ async function fetchLiveProps(forceRefresh){
     const allProps=[];
     for(const sp of SPORTS){
       try{
-        const evR=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
+        const evR=await fetch(`/api/odds?path=sports/${sp.key}/events`);
         if(!evR.ok)continue;
         const evs=await evR.json();
         if(!Array.isArray(evs)||evs.length===0)continue;
@@ -289,7 +289,7 @@ async function fetchLiveProps(forceRefresh){
         for(const ev of validEvents){
           if(S.apiRemaining<10)break;
           try{
-            const oR=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
+            const oR=await fetch(`/api/odds?path=sports/${sp.key}/events/${ev.id}/odds&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
             if(!oR.ok)continue;
             const od=await oR.json();
             S.apiUsed=parseInt(oR.headers.get('x-requests-used'))||S.apiUsed;
