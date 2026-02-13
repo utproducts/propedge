@@ -265,34 +265,40 @@ const AI={
 function mapMarket(m){return{player_points:'points',player_rebounds:'rebounds',player_assists:'assists',player_pass_yds:'passYards',player_rush_yds:'rushYards',player_reception_yds:'recYards'}[m]||'points';}
 function sportEmoji(s){return{nba:'🏀',ncaab:'🎓',nfl:'🏈',ncaaf:'🎓🏈'}[s]||'🏀';}
 
-async function fetchLiveProps(){
+async function fetchLiveProps(forceRefresh){
   S.loading=true;render();
   const allProps=[];
   const cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
   const cacheAge=cache?Date.now()-cache.ts:Infinity;
 
-  // Use cache if less than 15 min old
-  if(cache&&cacheAge<900000){
+  // Use cache if less than 15 min old (unless force refresh)
+  if(!forceRefresh&&cache&&cacheAge<900000){
     S.props=cache.props;S.apiUsed=cache.used;S.apiRemaining=cache.remaining;S.lastFetch=new Date(cache.ts);S.loading=false;render();return;
   }
 
+  // Timeout helper — abort after 8 seconds
+  function fetchTO(url,ms=8000){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(t));}
+
   try{
     for(const sp of SPORTS){
+      try{
       // 1. Get events
-      const evResp=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
+      const evResp=await fetchTO(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
       if(!evResp.ok)continue;
       const events=await evResp.json();
+      if(!events||events.length===0)continue;// Skip sports with no events
       S.apiUsed=parseInt(evResp.headers.get('x-requests-used'))||S.apiUsed;
       S.apiRemaining=parseInt(evResp.headers.get('x-requests-remaining'))||S.apiRemaining;
 
       // 2. For each event (limit to 3 per sport to conserve requests)
       const topEvents=events.slice(0,3);
       for(const ev of topEvents){
-        if(S.apiRemaining<10){toast('⚠️','Low API quota — using cached data');break;}
+        if(S.apiRemaining<10){toast('⚠️','Low API quota');break;}
         try{
-          const oddsResp=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
+          const oddsResp=await fetchTO(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
           if(!oddsResp.ok)continue;
           const oddsData=await oddsResp.json();
+          if(!oddsData||!oddsData.bookmakers||oddsData.bookmakers.length===0)continue;// Skip events with no odds
           S.apiUsed=parseInt(oddsResp.headers.get('x-requests-used'))||S.apiUsed;
           S.apiRemaining=parseInt(oddsResp.headers.get('x-requests-remaining'))||S.apiRemaining;
 
@@ -379,15 +385,23 @@ async function fetchLiveProps(){
           }
         }catch(e){console.error('Event fetch error:',e);}
       }
+      }catch(e){console.error('Sport fetch error:',sp.key,e);}// end sport try
     }
 
     if(allProps.length>0){
       S.props=allProps.sort((a,b)=>b.score-a.score);
       localStorage.setItem('pe_cache',JSON.stringify({props:S.props,ts:Date.now(),used:S.apiUsed,remaining:S.apiRemaining}));
+      toast('✅',`${allProps.length} live props loaded`);
+    } else if(cache){
+      S.props=cache.props;
+      toast('📋','No new data — showing cached props');
+    } else {
+      toast('⚠️','No props available right now');
     }
     S.lastFetch=new Date();
   }catch(e){
     console.error('API error:',e);
+    if(cache)S.props=cache.props;
     toast('⚠️','API error — showing cached data');
   }
   S.loading=false;
@@ -466,7 +480,7 @@ function render(){
     <div class="topbar"><div class="topbar-l"><div class="logo-m">PE</div><div class="topbar-t">Prop<span>Edge</span></div></div><div class="topbar-r"><div class="ts"><div class="tl">Unit</div><div class="tv am">$${u}</div></div><div class="ts"><div class="tl">Bank</div><div class="tv">$${S.bankroll.toLocaleString()}</div></div></div></div>
 
     <div class="page ${S.page==='props'?'active':''}">
-      <div class="live-strip"><div class="live-info"><span class="live-dot ${S.props.some(p=>p.isLive)?'on':'off'}"></span>${S.props.some(p=>p.isLive)?`<strong>LIVE</strong>&nbsp;· ${S.props.length} props from ${S.props.filter(p=>p.isLive).length>0?[...new Set(S.props.map(p=>p.sport.toUpperCase()))].join(', '):'—'}`:'Loading...'}</div><div style="display:flex;align-items:center;gap:8px"><span class="live-remaining">${S.apiRemaining} req left</span><button class="refresh-btn" onclick="fetchLiveProps()">↻ Refresh</button></div></div>
+      <div class="live-strip"><div class="live-info"><span class="live-dot ${S.props.some(p=>p.isLive)?'on':'off'}"></span>${S.props.some(p=>p.isLive)?`<strong>LIVE</strong>&nbsp;· ${S.props.length} props from ${S.props.filter(p=>p.isLive).length>0?[...new Set(S.props.map(p=>p.sport.toUpperCase()))].join(', '):'—'}`:'Loading...'}</div><div style="display:flex;align-items:center;gap:8px"><span class="live-remaining">${S.apiRemaining} req left</span><button class="refresh-btn" onclick="localStorage.removeItem('pe_cache');fetchLiveProps(true)">↻ Refresh</button></div></div>
       ${ins.hasData?`<div class="ai-strip"><div class="ai-icon">🤖</div><div class="ai-body"><div class="ai-t">AI Personalized</div><div class="ai-s">Boosting based on ${S.bets.length} bets</div><div class="ai-chips">${topP.map(n=>`<span class="ai-chip">⭐ ${n}</span>`).join('')}</div></div></div>`:''}
       ${fc>0?`<div class="fire-alert"><div class="fa-i">🔥</div><div class="fa-b"><div class="fa-t">Fire Picks</div><div class="fa-s">${fc} high-confidence live props</div></div><div class="fa-c">${fc}</div></div>`:''}
       <div class="qstats"><div class="qs"><div class="qsl">Today</div><div class="qsv">${r.w}-${r.l}</div><div class="qss">${r.p} live</div></div><div class="qs"><div class="qsl">Record</div><div class="qsv">${a.w}-${a.l}</div></div><div class="qs"><div class="qsl">P&L</div><div class="qsv" style="color:${p>=0?'var(--accent)':'var(--red)'}">${p>=0?'+':''}$${p.toFixed(0)}</div></div><div class="qs"><div class="qsl">Units</div><div class="qsv">${r.t}/5</div></div></div>
