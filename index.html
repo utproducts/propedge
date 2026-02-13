@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PropEdge">
+<meta name="theme-color" content="#0f1923">
+<title>PropEdge</title>
+<link rel="manifest" href="/manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0f1923;--bg2:#162029;--card:#1a2733;--card2:#1e2f3d;--card3:#243647;
+  --border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.1);
+  --accent:#00e589;--accent2:#00c878;--accentk:rgba(0,229,137,.1);
+  --fire:#ff6b35;--gold:#ffc845;--firek:rgba(255,107,53,.1);
+  --blue:#4da6ff;--purple:#9b6dff;--red:#ff5a5a;--amber:#ffb84d;
+  --t1:#f0f4f8;--t2:#a3b8cc;--t3:#6b8299;--t4:#4a6275;
+  --nba:#ff8c26;--ncb:#22d3ee;--nfl:#4da6ff;--ncf:#9b6dff;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,sans-serif;min-height:100dvh;overflow-x:hidden;padding-bottom:72px}
+
+.bnav{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--bg2);border-top:1px solid var(--border2);display:flex;z-index:200;padding-bottom:env(safe-area-inset-bottom)}
+.bnav-i{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;position:relative}
+.bnav-i .bi{font-size:22px;transition:transform .2s}.bnav-i .bl{font-size:9px;font-weight:600;color:var(--t3);transition:color .2s;letter-spacing:.3px}
+.bnav-i.on .bl{color:var(--accent)}.bnav-i.on .bi{transform:scale(1.1)}
+.bnav-i .badge{position:absolute;top:6px;right:calc(50% - 18px);width:16px;height:16px;border-radius:8px;background:var(--fire);color:#fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
+.topbar{padding:12px 16px 10px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border)}
+.topbar-l{display:flex;align-items:center;gap:10px}
+.logo-m{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#00b4d8);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:var(--bg)}
+.topbar-t{font-size:18px;font-weight:800;letter-spacing:-.3px}.topbar-t span{color:var(--accent)}
+.topbar-r{display:flex;align-items:center;gap:12px}
+.ts{text-align:center}.ts .tl{font-size:8px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px}.ts .tv{font-size:15px;font-weight:800;color:var(--accent)}.ts .tv.am{color:var(--amber)}
+
+.page{display:none;padding:0 0 16px}.page.active{display:block}
+.px{padding:0 16px}
+
+/* LIVE indicator */
+.live-strip{margin:8px 16px;padding:8px 12px;background:var(--card);border:1px solid var(--border2);border-radius:10px;display:flex;align-items:center;justify-content:space-between;font-size:11px}
+.live-dot{width:7px;height:7px;border-radius:50%;margin-right:6px;display:inline-block}
+.live-dot.on{background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pulse 2s infinite}
+.live-dot.off{background:var(--t4)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.live-info{display:flex;align-items:center;color:var(--t2)}
+.live-remaining{color:var(--t3)}
+.refresh-btn{padding:5px 12px;border-radius:7px;background:var(--card2);border:1px solid var(--border2);color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+
+/* Search */
+.search-wrap{padding:12px 16px 8px}
+.search-box{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:10px 14px}
+.search-box:focus-within{border-color:var(--accent)}
+.search-box input{flex:1;background:none;border:none;color:var(--t1);font-size:15px;font-family:'Inter',sans-serif;outline:none}
+.search-box input::placeholder{color:var(--t4)}
+.search-clear{font-size:14px;color:var(--t3);cursor:pointer;display:none}.search-clear.show{display:block}
+
+.pills{display:flex;gap:6px;padding:8px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}.pills::-webkit-scrollbar{display:none}
+.pill{padding:6px 14px;border-radius:20px;background:var(--card);border:1px solid var(--border);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s}
+.pill.on{color:var(--bg);border-color:transparent}
+.pill.on[data-s="all"]{background:var(--accent)}.pill.on[data-s="foryou"]{background:linear-gradient(135deg,var(--blue),var(--purple))}
+.pill.on[data-s="nba"]{background:var(--nba)}.pill.on[data-s="ncaab"]{background:var(--ncb)}.pill.on[data-s="nfl"]{background:var(--nfl)}.pill.on[data-s="ncaaf"]{background:var(--ncf)}
+
+.ai-strip{margin:8px 16px;padding:12px 14px;background:linear-gradient(135deg,rgba(77,166,255,.08),rgba(155,109,255,.06));border:1px solid rgba(77,166,255,.15);border-radius:12px;display:flex;align-items:center;gap:10px}
+.ai-strip .ai-icon{font-size:24px}.ai-strip .ai-body{flex:1}
+.ai-strip .ai-t{font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
+.ai-strip .ai-s{font-size:12px;color:var(--t2);margin-top:2px;line-height:1.3}
+.ai-chips{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.ai-chip{font-size:9px;padding:2px 7px;border-radius:10px;font-weight:600;background:rgba(0,229,137,.1);color:var(--accent);border:1px solid rgba(0,229,137,.15)}
+
+.fire-alert{margin:8px 16px;padding:12px 14px;background:linear-gradient(135deg,var(--firek),rgba(255,200,69,.06));border:1px solid rgba(255,107,53,.25);border-radius:12px;display:flex;align-items:center;gap:10px}
+.fire-alert .fa-i{font-size:24px;animation:w 2s ease-in-out infinite}
+@keyframes w{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.05)}}
+.fire-alert .fa-b{flex:1}.fire-alert .fa-t{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px}.fire-alert .fa-s{font-size:12px;color:var(--t2);margin-top:2px}
+.fire-alert .fa-c{width:36px;height:36px;border-radius:10px;background:var(--fire);color:#fff;font-size:18px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(255,107,53,.3)}
+
+.qstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 16px}
+.qs{background:var(--card);border-radius:10px;padding:10px;text-align:center}
+.qs .qsl{font-size:8px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.qs .qsv{font-size:18px;font-weight:800}.qs .qss{font-size:9px;color:var(--t3);margin-top:1px}
+
+.sec-label{padding:12px 16px 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px}
+.sec-label.fire{color:var(--gold)}.sec-label.strong{color:var(--accent)}.sec-label.decent{color:var(--blue)}.sec-label.reco{color:var(--purple)}
+.sec-label .sc{font-size:9px;padding:2px 6px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--t3)}
+
+/* PROP CARD */
+.pc{margin:4px 16px;background:var(--card);border-radius:14px;overflow:hidden;position:relative;transition:all .2s}
+.pc.fc{background:linear-gradient(135deg,rgba(255,107,53,.06),rgba(255,200,69,.03),var(--card));border:1px solid rgba(255,107,53,.18)}
+.pc.sc{border:1px solid rgba(0,229,137,.12)}.pc.dc{border:1px solid var(--border)}
+.pc.rc{box-shadow:inset 0 0 0 1px rgba(155,109,255,.2)}
+.pc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.pc.fc::before{background:linear-gradient(180deg,var(--fire),var(--gold));box-shadow:0 0 8px rgba(255,107,53,.4)}
+.pc.sc::before{background:var(--accent);box-shadow:0 0 6px rgba(0,229,137,.3)}.pc.dc::before{background:var(--blue)}
+
+.pc-m{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 18px;cursor:pointer}
+.pc-av{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;position:relative}
+.pc-av.nba{background:rgba(255,140,38,.12)}.pc-av.ncaab{background:rgba(34,211,238,.12)}.pc-av.nfl{background:rgba(77,166,255,.12)}.pc-av.ncaaf{background:rgba(155,109,255,.12)}
+.pc-td{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:6px;font-size:10px;display:flex;align-items:center;justify-content:center;border:2px solid var(--card)}
+.fc .pc-td{background:var(--fire)}.sc .pc-td{background:var(--accent)}.dc .pc-td{background:var(--blue)}
+.pc-i{flex:1;min-width:0}
+.pc-n{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-p{font-size:12px;color:var(--t2);margin-top:1px}.pc-g{font-size:9px;color:var(--t4);margin-top:3px}
+.pc-tags{display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:wrap}
+.tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;text-transform:uppercase;letter-spacing:.3px}
+.tag.sp{color:var(--bg)}.tag.sp.nba{background:var(--nba)}.tag.sp.ncaab{background:var(--ncb)}.tag.sp.nfl{background:var(--nfl)}.tag.sp.ncaaf{background:var(--ncf)}
+.tag.edge{background:rgba(255,200,69,.12);color:var(--gold)}.tag.ai{background:rgba(155,109,255,.12);color:var(--purple)}.tag.live{background:rgba(0,229,137,.1);color:var(--accent)}
+.pc-o{text-align:right;flex-shrink:0}
+.pc-ov{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.fc .pc-ov{color:var(--gold)}.sc .pc-ov{color:var(--accent)}.dc .pc-ov{color:var(--blue)}
+.pc-bk{font-size:9px;color:var(--t3);margin-top:1px}
+.pc-cs{font-size:9px;font-weight:700;margin-top:3px;padding:2px 6px;border-radius:6px;display:inline-block}
+.fc .pc-cs{background:var(--firek);color:var(--fire)}.sc .pc-cs{background:var(--accentk);color:var(--accent)}.dc .pc-cs{background:rgba(77,166,255,.1);color:var(--blue)}
+
+/* Odds comparison strip */
+.odds-comp{padding:0 14px 8px 18px;display:flex;gap:4px;flex-wrap:wrap}
+.oc-item{font-size:9px;padding:3px 7px;border-radius:5px;background:var(--bg);color:var(--t3)}
+.oc-item.best{color:var(--accent);font-weight:700;border:1px solid rgba(0,229,137,.2)}
+
+/* Expand */
+.pc-ex{max-height:0;overflow:hidden;transition:max-height .35s ease}.pc-ex.open{max-height:500px}
+.pc-exi{padding:0 14px 12px 18px}
+.stbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}
+.stbl th{text-align:left;padding:4px 5px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t4);border-bottom:1px solid var(--border)}
+.stbl td{padding:4px 5px;font-size:11px;border-bottom:1px solid var(--border)}.stbl tr:last-child td{border-bottom:none}
+.stbl .hit{color:var(--accent);font-weight:700}.stbl .miss{color:var(--red)}
+.hit-bar-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.hit-bar{flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+.hit-fill{height:100%;border-radius:3px}.hit-fill.good{background:var(--accent)}.hit-fill.ok{background:var(--amber)}.hit-fill.bad{background:var(--red)}
+.hit-pct{font-size:13px;font-weight:800;min-width:36px;text-align:right}.hit-pct.good{color:var(--accent)}.hit-pct.ok{color:var(--amber)}.hit-pct.bad{color:var(--red)}
+
+.pc-bet{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:rgba(0,229,137,.06);border-top:1px solid rgba(0,229,137,.1);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.5px}
+.pc-bet:active{background:rgba(0,229,137,.12)}
+.fc .pc-bet{background:rgba(255,107,53,.06);border-top-color:rgba(255,107,53,.12);color:var(--gold)}
+
+/* Search results */
+.sr-list{padding:8px 16px}
+.sr-p{display:flex;align-items:center;gap:12px;padding:14px;background:var(--card);border-radius:12px;margin-bottom:6px;cursor:pointer}
+.sr-p:active{background:var(--card2)}
+.sr-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.sr-info{flex:1}.sr-name{font-size:14px;font-weight:700}.sr-team{font-size:11px;color:var(--t3)}
+.sr-ct{font-size:11px;color:var(--accent);font-weight:600}
+
+.ph{padding:16px;display:flex;align-items:center;gap:14px;background:var(--card);margin:8px 16px;border-radius:14px}
+.ph-av{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px}
+.ph-info{flex:1}.ph-name{font-size:20px;font-weight:800}.ph-team{font-size:12px;color:var(--t3);margin-top:2px}
+.ph-back{font-size:24px;cursor:pointer;padding:4px}
+
+/* Modal */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);z-index:300;display:none;align-items:flex-end;justify-content:center}.mo.open{display:flex}
+.ms{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;animation:su .3s ease;padding-bottom:env(safe-area-inset-bottom)}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ms-h{width:36px;height:4px;background:var(--t4);border-radius:2px;margin:10px auto 0}
+.ms-head{padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between}
+.ms-t{font-size:17px;font-weight:700}.ms-x{font-size:20px;color:var(--t3);cursor:pointer}
+.ms-body{padding:0 20px 20px}
+.mp{background:var(--card);border-radius:12px;padding:14px;margin-bottom:14px}
+.mp-n{font-size:16px;font-weight:700}.mp-d{font-size:12px;color:var(--t2);margin-top:2px}
+.mp-r{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.mp-o{font-size:20px;font-weight:900;color:var(--accent)}.mp-b{font-size:10px;color:var(--accent)}
+.mfs{display:flex;flex-direction:column;gap:10px}
+.m-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mf{display:flex;flex-direction:column;gap:3px}
+.mf label{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.5px}
+.mf input,.mf select{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;color:var(--t1);font-size:14px;font-family:'Inter',sans-serif;outline:none}
+.mf input:focus{border-color:var(--accent)}
+.m-py{background:var(--accentk);border:1px solid rgba(0,229,137,.15);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.m-py .pl{font-size:11px;color:var(--t2)}.m-py .pv{font-size:18px;font-weight:800;color:var(--accent)}
+.ms-ft{padding:12px 20px 16px;display:flex;gap:8px}
+.btn-c{flex:1;padding:12px;border-radius:12px;background:var(--card);border:none;color:var(--t2);font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.btn-k{flex:2;padding:12px;border-radius:12px;background:var(--accent);border:none;color:var(--bg);font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-k:active{transform:scale(.98)}
+
+/* Settings */
+.set-s{margin:8px 16px;background:var(--card);border-radius:14px;overflow:hidden}
+.set-r{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}.set-r:last-child{border-bottom:none}
+.set-l{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.set-in{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--t1);font-size:13px;width:160px;text-align:right;outline:none;font-family:'Inter',sans-serif}.set-in:focus{border-color:var(--accent)}
+.set-btn{padding:8px 16px;border-radius:8px;background:var(--accent);color:var(--bg);font-size:12px;font-weight:700;border:none;cursor:pointer}.set-btn.bl{background:var(--blue);color:#fff}
+.set-hd{padding:16px;font-size:13px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.sp{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:600}
+.sp.on{background:var(--accentk);color:var(--accent)}.sp.off{background:rgba(255,90,90,.08);color:var(--t3)}
+.sd{width:6px;height:6px;border-radius:50%}.sd.on{background:var(--accent);box-shadow:0 0 4px var(--accent)}.sd.off{background:var(--t4)}
+
+.bet-item{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}.bet-item:last-child{border-bottom:none}
+.br{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.br.win{background:var(--accentk);color:var(--accent)}.br.loss{background:rgba(255,90,90,.1);color:var(--red)}.br.pending{background:rgba(255,184,77,.1);color:var(--amber)}
+.bi-i{flex:1;min-width:0}.bi-d{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bi-dt{font-size:10px;color:var(--t4);margin-top:2px}
+.bi-r{text-align:right;flex-shrink:0}.bi-a{font-size:13px;font-weight:700}.bi-p{font-size:11px;font-weight:700;margin-top:1px}.bi-p.pos{color:var(--accent)}.bi-p.neg{color:var(--red)}
+.rb{padding:4px 10px;border-radius:6px;border:none;font-size:10px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-left:2px}
+.rb.w{background:var(--accentk);color:var(--accent)}.rb.l{background:rgba(255,90,90,.1);color:var(--red)}
+
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 16px}
+.rl{display:flex;align-items:flex-start;gap:8px;padding:10px;background:var(--card);border-radius:10px}
+.rln{width:20px;height:20px;border-radius:6px;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.rlt{font-size:11px;color:var(--t2);line-height:1.3}.rlt strong{color:var(--t1)}
+
+.empty{text-align:center;padding:32px 20px;color:var(--t3);font-size:13px}
+.loading{text-align:center;padding:40px;color:var(--t3);font-size:13px}
+.loading .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--accent);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:8px;z-index:400;animation:tI .3s ease,tO .3s ease 2.5s forwards;box-shadow:0 8px 30px rgba(0,0,0,.4);max-width:90vw}
+@keyframes tI{from{transform:translateX(-50%) translateY(-20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+@keyframes tO{from{opacity:1}to{opacity:0}}
+.toast-i{font-size:16px}.toast-t{font-size:12px;font-weight:600}
+
+@media(min-width:600px){body{max-width:500px;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}.bnav{max-width:500px;left:50%;transform:translateX(-50%)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="mo" id="modal"></div>
+<div id="tc"></div>
+
+<script>
+// =========================================================
+// PROPEDGE v5 LIVE — Real Odds API + AI Betting Assistant
+// =========================================================
+
+const API_KEY='bb800272b82fc44ac9bd82ca18815bd2';
+const SPORTS=[
+  {key:'basketball_nba',label:'NBA',sport:'nba',emoji:'🏀',markets:'player_points,player_rebounds,player_assists'},
+  {key:'basketball_ncaab',label:'NCAAB',sport:'ncaab',emoji:'🎓',markets:'player_points,player_rebounds,player_assists'},
+  {key:'americanfootball_nfl',label:'NFL',sport:'nfl',emoji:'🏈',markets:'player_pass_yds,player_rush_yds,player_reception_yds'},
+  {key:'americanfootball_ncaaf',label:'NCAAF',sport:'ncaaf',emoji:'🎓🏈',markets:'player_pass_yds,player_rush_yds,player_reception_yds'},
+];
+const BOOKS='draftkings,fanduel,betmgm,caesars,espnbet';
+const SMS=JSON.parse(localStorage.getItem('pe_sms')||'{"chad":"","blake":"","noah":"","sid":"","auth":"","from":"","on":false}');
+let sb=null;const SBC=JSON.parse(localStorage.getItem('pe_sb')||'{"url":"https://sngxdhsdqmhoqvmapdxe.supabase.co","key":"sb_publishable_DmQ3nS_pPFxY94Vl9j2_xQ_pP_FerRP"}');
+function initSB(){if(SBC.url&&SBC.key){try{sb=supabase.createClient(SBC.url,SBC.key);return true}catch(e){}}return false}
+initSB();
+
+const S={
+  bankroll:parseFloat(localStorage.getItem('pe_br')||'1000'),
+  bets:JSON.parse(localStorage.getItem('pe_bets')||'[]'),
+  sport:'all',page:'props',props:[],expanded:new Set(),
+  searchQuery:'',selectedPlayer:null,loading:false,
+  apiUsed:0,apiRemaining:500,lastFetch:null,
+  prefs:JSON.parse(localStorage.getItem('pe_prefs')||JSON.stringify({
+    playerScores:{},sportWeights:{nba:.25,ncaab:.25,nfl:.25,ncaaf:.25},
+    betTypeWeights:{points:.17,rebounds:.14,assists:.14,passYards:.14,rushYards:.14,recYards:.14},
+    avgConfidence:50,winRates:{},totalBets:0
+  }))
+};
+
+function unit(){return Math.round(S.bankroll*.02)}
+function trec(){const d=new Date().toDateString(),t=S.bets.filter(b=>new Date(b.date).toDateString()===d);return{w:t.filter(b=>b.result==='win').length,l:t.filter(b=>b.result==='loss').length,p:t.filter(b=>b.result==='pending').length,t:t.length}}
+function arec(){return{w:S.bets.filter(b=>b.result==='win').length,l:S.bets.filter(b=>b.result==='loss').length,t:S.bets.length}}
+function tpnl(){return S.bets.reduce((s,b)=>s+(b.pnl||0),0)}
+function save(){localStorage.setItem('pe_bets',JSON.stringify(S.bets));localStorage.setItem('pe_br',S.bankroll.toString());localStorage.setItem('pe_prefs',JSON.stringify(S.prefs))}
+
+// ===== AI ENGINE =====
+const AI={
+  track(player,sport,betType,action,conf){const p=S.prefs,w={bet:3,selected:2,expanded:1};p.playerScores[player]=(p.playerScores[player]||0)+(w[action]||0);Object.keys(p.playerScores).forEach(k=>{if(k!==player)p.playerScores[k]*=.995});if(action==='bet'){p.sportWeights[sport]=(p.sportWeights[sport]||.25)+.02;const sm=Object.values(p.sportWeights).reduce((a,b)=>a+b,0);Object.keys(p.sportWeights).forEach(k=>p.sportWeights[k]/=sm);if(betType){p.betTypeWeights[betType]=(p.betTypeWeights[betType]||.14)+.02;const s2=Object.values(p.betTypeWeights).reduce((a,b)=>a+b,0);Object.keys(p.betTypeWeights).forEach(k=>p.betTypeWeights[k]/=s2);}p.avgConfidence=p.avgConfidence*.9+conf*.1;}save();},
+  recordOutcome(player,sport,betType,result){const p=S.prefs,key=`${sport}_${betType}`;if(!p.winRates[key])p.winRates[key]={w:0,l:0};result==='win'?(p.winRates[key].w++,p.playerScores[player]=(p.playerScores[player]||0)+2):(p.winRates[key].l++,p.playerScores[player]=(p.playerScores[player]||0)-.5);save();},
+  getBoost(prop){const p=S.prefs;let boost=0,reasons=[];const ps=p.playerScores[prop.player]||0;if(ps>=5){boost+=18;reasons.push(`${prop.player} is a favorite`);}else if(ps>=3){boost+=10;}const sw=p.sportWeights[prop.sport]||.25;if(sw>=.35){boost+=8;reasons.push(`Top sport: ${prop.sport.toUpperCase()}`);}const key=`${prop.sport}_${prop.betType}`,wr=p.winRates[key];if(wr&&(wr.w+wr.l)>=3){const rate=wr.w/(wr.w+wr.l);if(rate>=.65){boost+=12;reasons.push(`${Math.round(rate*100)}% win rate`);}}return{boost:Math.min(boost,35),reasons,isRecommended:boost>=12};},
+  getInsights(){const p=S.prefs;return{topPlayers:Object.entries(p.playerScores).sort((a,b)=>b[1]-a[1]).slice(0,5).filter(([_,v])=>v>0),topSport:Object.entries(p.sportWeights).sort((a,b)=>b[1]-a[1])[0],hasData:S.bets.length>=2};}
+};
+
+// =========================================================
+// LIVE ODDS API INTEGRATION
+// =========================================================
+function mapMarket(m){return{player_points:'points',player_rebounds:'rebounds',player_assists:'assists',player_pass_yds:'passYards',player_rush_yds:'rushYards',player_reception_yds:'recYards'}[m]||'points';}
+function sportEmoji(s){return{nba:'🏀',ncaab:'🎓',nfl:'🏈',ncaaf:'🎓🏈'}[s]||'🏀';}
+
+async function fetchLiveProps(){
+  S.loading=true;render();
+  const allProps=[];
+  const cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
+  const cacheAge=cache?Date.now()-cache.ts:Infinity;
+
+  // Use cache if less than 15 min old
+  if(cache&&cacheAge<900000){
+    S.props=cache.props;S.apiUsed=cache.used;S.apiRemaining=cache.remaining;S.lastFetch=new Date(cache.ts);S.loading=false;render();return;
+  }
+
+  try{
+    for(const sp of SPORTS){
+      // 1. Get events
+      const evResp=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
+      if(!evResp.ok)continue;
+      const events=await evResp.json();
+      S.apiUsed=parseInt(evResp.headers.get('x-requests-used'))||S.apiUsed;
+      S.apiRemaining=parseInt(evResp.headers.get('x-requests-remaining'))||S.apiRemaining;
+
+      // 2. For each event (limit to 3 per sport to conserve requests)
+      const topEvents=events.slice(0,3);
+      for(const ev of topEvents){
+        if(S.apiRemaining<10){toast('⚠️','Low API quota — using cached data');break;}
+        try{
+          const oddsResp=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
+          if(!oddsResp.ok)continue;
+          const oddsData=await oddsResp.json();
+          S.apiUsed=parseInt(oddsResp.headers.get('x-requests-used'))||S.apiUsed;
+          S.apiRemaining=parseInt(oddsResp.headers.get('x-requests-remaining'))||S.apiRemaining;
+
+          // 3. Parse into prop objects
+          const propsByPlayer={};
+          for(const bk of(oddsData.bookmakers||[])){
+            for(const mkt of bk.markets){
+              for(const o of mkt.outcomes){
+                if(o.name!=='Over')continue;
+                const key=`${o.description}|${mkt.key}|${o.point}`;
+                if(!propsByPlayer[key]){
+                  propsByPlayer[key]={
+                    player:o.description,
+                    prop:`Over ${o.point} ${mapMarket(mkt.key).replace(/([A-Z])/g,' $1').replace('Yards','Yds').trim()}`,
+                    line:o.point,
+                    market:mkt.key,
+                    betType:mapMarket(mkt.key),
+                    sport:sp.sport,
+                    emoji:sportEmoji(sp.sport),
+                    game:`${ev.away_team.split(' ').pop()} vs ${ev.home_team.split(' ').pop()} • ${new Date(ev.commence_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`,
+                    books:{},bestOdds:-999,bestBook:'',
+                    id:Math.random().toString(36).substr(2,8)
+                  };
+                }
+                propsByPlayer[key].books[bk.title]=o.price;
+                if(o.price>propsByPlayer[key].bestOdds){
+                  propsByPlayer[key].bestOdds=o.price;
+                  propsByPlayer[key].bestBook=bk.title;
+                }
+              }
+            }
+          }
+
+          // 4. Score & convert
+          for(const p of Object.values(propsByPlayer)){
+            if(Object.keys(p.books).length<2)continue;// Need 2+ books to compare
+
+            const bookOdds=Object.entries(p.books);
+            const sortedOdds=bookOdds.sort((a,b)=>b[1]-a[1]);
+            const oddsSpread=sortedOdds[0][1]-sortedOdds[sortedOdds.length-1][1];
+
+            // EV estimate (simplified: best odds vs avg)
+            const avgOdds=bookOdds.reduce((s,[_,v])=>s+v,0)/bookOdds.length;
+            const evEst=parseFloat(((p.bestOdds-avgOdds)/Math.abs(avgOdds||1)*100).toFixed(1));
+
+            // Confidence scoring
+            let score=0;
+            const reasons=[];
+            if(evEst>=4){score+=25;reasons.push(`+${evEst.toFixed(1)}% EV edge`);}
+            else if(evEst>=2){score+=15;reasons.push(`+${evEst.toFixed(1)}% EV`);}
+            else if(evEst>0)score+=8;
+
+            if(oddsSpread>=25){score+=20;reasons.push(`${oddsSpread}pt odds gap`);}
+            else if(oddsSpread>=15){score+=12;}
+            else if(oddsSpread>=8)score+=6;
+
+            if(bookOdds.length>=4){score+=10;reasons.push(`${bookOdds.length} books agree`);}
+            else if(bookOdds.length>=3)score+=5;
+
+            // Positive odds bonus
+            if(p.bestOdds>0){score+=5;if(p.bestOdds>=130){score+=5;reasons.push(`+${p.bestOdds} value`);}}
+
+            // AI boost
+            const aiB=AI.getBoost(p);
+            score=Math.min(score+aiB.boost,100);
+            reasons.push(...aiB.reasons);
+
+            const tier=score>=65?'fire':score>=40?'strong':score>=20?'decent':'skip';
+            const otherOdds=sortedOdds.filter(([b])=>b!==p.bestBook).slice(0,3).map(([b,o])=>({book:b,odds:o}));
+            const fmtOdds=(v)=>v>=0?`+${v}`:`${v}`;
+
+            // Generate simulated last-10 (until we add a stats API)
+            const last10=[];for(let i=0;i<10;i++){const d=new Date();d.setDate(d.getDate()-(i*3+Math.floor(Math.random()*2)));const vr=p.line*.3;const actual=Math.max(0,Math.round((p.line+(Math.random()*vr*2-vr))*10)/10);last10.push({date:d,opponent:['LAL','BOS','GSW','PHX','DAL','MIL','CHI','NYK'][Math.floor(Math.random()*8)],statValue:actual,hit:actual>=p.line});}
+
+            allProps.push({
+              ...p,
+              bestOdds:fmtOdds(p.bestOdds),bestOddsRaw:p.bestOdds,
+              otherOdds,ev:evEst,oddsSpread,
+              score,tier,reasons,
+              aiBoost:aiB.boost,isRecommended:aiB.isRecommended,
+              hitRate:last10.filter(g=>g.hit).length*10,
+              last10,isLive:true
+            });
+          }
+        }catch(e){console.error('Event fetch error:',e);}
+      }
+    }
+
+    if(allProps.length>0){
+      S.props=allProps.sort((a,b)=>b.score-a.score);
+      localStorage.setItem('pe_cache',JSON.stringify({props:S.props,ts:Date.now(),used:S.apiUsed,remaining:S.apiRemaining}));
+    }
+    S.lastFetch=new Date();
+  }catch(e){
+    console.error('API error:',e);
+    toast('⚠️','API error — showing cached data');
+  }
+  S.loading=false;
+  render();
+}
+
+// ===== UTILS =====
+function calcPay(o,a){const v=parseInt(o);return v>0?Math.round(a*(v/100)):Math.round(a*(100/Math.abs(v)));}
+function toast(i,t){const c=document.getElementById('tc');const e=document.createElement('div');e.className='toast';e.innerHTML=`<span class="toast-i">${i}</span><span class="toast-t">${t}</span>`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}
+async function sendSMS(to,body){if(!SMS.on||!SMS.sid||!to)return;try{await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SMS.sid}/Messages.json`,{method:'POST',headers:{'Authorization':'Basic '+btoa(SMS.sid+':'+SMS.auth),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({To:to,From:SMS.from,Body:body})});}catch(e){}}
+
+// ===== RENDER =====
+function render(){
+  const r=trec(),a=arec(),p=tpnl(),u=unit(),ins=AI.getInsights();
+  const fc=S.props.filter(x=>x.tier==='fire').length;
+  let filtered=S.sport==='all'?S.props:S.sport==='foryou'?S.props.filter(x=>x.isRecommended||x.aiBoost>=8):S.props.filter(x=>x.sport===S.sport);
+  const fire=filtered.filter(x=>x.tier==='fire'),strong=filtered.filter(x=>x.tier==='strong'),decent=filtered.filter(x=>x.tier==='decent');
+  const reco=filtered.filter(x=>x.isRecommended&&x.tier!=='fire').slice(0,5);
+
+  function pc(p){
+    const open=S.expanded.has(p.id);
+    const tc=p.tier==='fire'?'fc':p.tier==='strong'?'sc':'dc';
+    const ti=p.tier==='fire'?'🔥':p.tier==='strong'?'✅':'📊';
+    const hits=p.last10.filter(g=>g.hit).length;const hc=hits>=7?'good':hits>=5?'ok':'bad';
+    const line=p.line||parseFloat(p.prop.match(/[\d.]+/)?.[0]||20);
+    const avg=(p.last10.reduce((s,g)=>s+g.statValue,0)/10).toFixed(1);
+
+    return`<div class="pc ${tc} ${p.isRecommended?'rc':''}">
+      <div class="pc-m" onclick="toggleEx('${p.id}')">
+        <div class="pc-av ${p.sport}">${p.emoji}<div class="pc-td">${ti}</div></div>
+        <div class="pc-i">
+          <div class="pc-n">${p.player}</div>
+          <div class="pc-p">${p.prop}</div>
+          <div class="pc-tags">
+            <span class="tag sp ${p.sport}">${p.sport.toUpperCase()}</span>
+            ${p.isLive?'<span class="tag live">LIVE</span>':''}
+            ${p.hitRate>=70?`<span class="tag edge">${p.hitRate}%</span>`:''}
+            ${p.isRecommended?'<span class="tag ai">FOR YOU</span>':''}
+          </div>
+          <div class="pc-g">${p.game}</div>
+        </div>
+        <div class="pc-o">
+          <div class="pc-ov">${p.bestOdds}</div>
+          <div class="pc-bk">${p.bestBook}</div>
+          <div class="pc-cs">${p.score}${p.aiBoost>0?`<span style="color:var(--purple)">+${p.aiBoost}</span>`:''}</div>
+        </div>
+      </div>
+      <div class="odds-comp">${[{book:p.bestBook,odds:p.bestOdds,best:true},...(p.otherOdds||[]).map(o=>({book:o.book,odds:typeof o.odds==='number'?(o.odds>=0?'+'+o.odds:o.odds):o.odds}))].map(o=>`<span class="oc-item ${o.best?'best':''}">${o.book.replace('DraftKings','DK').replace('FanDuel','FD').replace('Caesars','CZR').replace('ESPN BET','ESPN').replace('BetMGM','MGM')}: ${o.odds}</span>`).join('')}</div>
+      <div class="pc-ex ${open?'open':''}"><div class="pc-exi">
+        <div class="hit-bar-row"><div class="hit-bar"><div class="hit-fill ${hc}" style="width:${hits*10}%"></div></div><div class="hit-pct ${hc}">${hits}/10</div></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:4px">AVG: <span style="color:${parseFloat(avg)>=line?'var(--accent)':'var(--red)'}; font-weight:700">${avg}</span> vs Line: ${line}</div>
+        <table class="stbl"><thead><tr><th>Date</th><th>Opp</th><th>Stat</th><th></th></tr></thead><tbody>${p.last10.map(g=>`<tr><td style="color:var(--t4);font-size:9px">${(g.date.getMonth()+1)}/${g.date.getDate()}</td><td>${g.opponent}</td><td style="color:${g.hit?'var(--accent)':'var(--red)'};font-weight:${g.hit?700:600}">${g.statValue}</td><td>${g.hit?'<span class="hit">✓</span>':'<span class="miss">✗</span>'}</td></tr>`).join('')}</tbody></table>
+        ${p.reasons.length>0?`<div style="font-size:10px;color:var(--t3);margin-top:8px;padding:6px 8px;background:var(--bg);border-radius:6px">💡 ${p.reasons.slice(0,3).join(' • ')}</div>`:''}
+      </div></div>
+      <div class="pc-bet" onclick="event.stopPropagation();openM('${p.id}')">💰 Bet · 1 Unit ($${u})</div>
+    </div>`;
+  }
+
+  const topP=ins.topPlayers.slice(0,3).map(([n])=>n);
+
+  // Search
+  let searchHTML='';
+  if(S.page==='search'){
+    if(S.selectedPlayer){
+      const pp=S.props.filter(x=>x.player===S.selectedPlayer);
+      searchHTML=`<div class="ph"><div class="ph-back" onclick="S.selectedPlayer=null;render()">←</div><div class="ph-av ${pp[0]?.sport||'nba'}">${pp[0]?.emoji||'🏀'}</div><div class="ph-info"><div class="ph-name">${S.selectedPlayer}</div><div class="ph-team">${pp.length} props available</div></div></div>${pp.map(pc).join('')}`;
+    }else{
+      const q=S.searchQuery.toLowerCase();
+      const grouped={};S.props.forEach(p=>{if(q&&!p.player.toLowerCase().includes(q))return;if(!grouped[p.player])grouped[p.player]={player:p.player,sport:p.sport,emoji:p.emoji,count:0};grouped[p.player].count++;});
+      const list=Object.values(grouped);
+      searchHTML=list.length?`<div class="sr-list">${list.map(r=>`<div class="sr-p" onclick="S.selectedPlayer='${r.player.replace(/'/g,"\\'")}';render()"><div class="sr-av ${r.sport}">${r.emoji}</div><div class="sr-info"><div class="sr-name">${r.player}</div><div class="sr-team">${r.sport.toUpperCase()}</div></div><div class="sr-ct">${r.count} props →</div></div>`).join('')}</div>`:'<div class="empty">No players found</div>';
+    }
+  }
+
+  document.getElementById('app').innerHTML=`
+    <div class="topbar"><div class="topbar-l"><div class="logo-m">PE</div><div class="topbar-t">Prop<span>Edge</span></div></div><div class="topbar-r"><div class="ts"><div class="tl">Unit</div><div class="tv am">$${u}</div></div><div class="ts"><div class="tl">Bank</div><div class="tv">$${S.bankroll.toLocaleString()}</div></div></div></div>
+
+    <div class="page ${S.page==='props'?'active':''}">
+      <div class="live-strip"><div class="live-info"><span class="live-dot ${S.props.some(p=>p.isLive)?'on':'off'}"></span>${S.props.some(p=>p.isLive)?`<strong>LIVE</strong>&nbsp;· ${S.props.length} props from ${S.props.filter(p=>p.isLive).length>0?[...new Set(S.props.map(p=>p.sport.toUpperCase()))].join(', '):'—'}`:'Loading...'}</div><div style="display:flex;align-items:center;gap:8px"><span class="live-remaining">${S.apiRemaining} req left</span><button class="refresh-btn" onclick="fetchLiveProps()">↻ Refresh</button></div></div>
+      ${ins.hasData?`<div class="ai-strip"><div class="ai-icon">🤖</div><div class="ai-body"><div class="ai-t">AI Personalized</div><div class="ai-s">Boosting based on ${S.bets.length} bets</div><div class="ai-chips">${topP.map(n=>`<span class="ai-chip">⭐ ${n}</span>`).join('')}</div></div></div>`:''}
+      ${fc>0?`<div class="fire-alert"><div class="fa-i">🔥</div><div class="fa-b"><div class="fa-t">Fire Picks</div><div class="fa-s">${fc} high-confidence live props</div></div><div class="fa-c">${fc}</div></div>`:''}
+      <div class="qstats"><div class="qs"><div class="qsl">Today</div><div class="qsv">${r.w}-${r.l}</div><div class="qss">${r.p} live</div></div><div class="qs"><div class="qsl">Record</div><div class="qsv">${a.w}-${a.l}</div></div><div class="qs"><div class="qsl">P&L</div><div class="qsv" style="color:${p>=0?'var(--accent)':'var(--red)'}">${p>=0?'+':''}$${p.toFixed(0)}</div></div><div class="qs"><div class="qsl">Units</div><div class="qsv">${r.t}/5</div></div></div>
+      <div class="pills">${['all','foryou','nba','ncaab','nfl','ncaaf'].map(s=>`<div class="pill ${S.sport===s?'on':''}" data-s="${s}" onclick="S.sport='${s}';render()">${s==='all'?'All':s==='foryou'?'🤖 For You':s.toUpperCase()}</div>`).join('')}</div>
+      ${S.loading?'<div class="loading"><div class="spinner"></div><br>Fetching live odds...</div>':''}
+      ${!S.loading&&S.props.length===0?'<div class="empty">No live props available right now. Hit refresh to check again.</div>':''}
+      ${fire.length?`<div class="sec-label fire">🔥 Fire <span class="sc">${fire.length}</span></div>${fire.map(pc).join('')}`:''}
+      ${reco.length&&S.sport!=='foryou'?`<div class="sec-label reco">🤖 For You <span class="sc">${reco.length}</span></div>${reco.map(pc).join('')}`:''}
+      ${strong.length?`<div class="sec-label strong">✅ Strong <span class="sc">${strong.length}</span></div>${strong.map(pc).join('')}`:''}
+      ${decent.length?`<div class="sec-label decent">📊 Decent <span class="sc">${decent.length}</span></div>${decent.map(pc).join('')}`:''}
+    </div>
+
+    <div class="page ${S.page==='search'?'active':''}">
+      <div class="search-wrap"><div class="search-box"><span style="font-size:18px">🔍</span><input placeholder="Search players..." value="${S.searchQuery}" oninput="S.searchQuery=this.value;S.selectedPlayer=null;render()"/><span class="search-clear ${S.searchQuery?'show':''}" onclick="S.searchQuery='';S.selectedPlayer=null;render()">✕</span></div></div>
+      ${searchHTML}
+    </div>
+
+    <div class="page ${S.page==='bets'?'active':''}">
+      <div class="sec-label" style="color:var(--t1)">📒 Bet Log <span class="sc">${S.bets.length}</span></div>
+      <div style="margin:0 16px;background:var(--card);border-radius:14px;overflow:hidden">${S.bets.length===0?'<div class="empty">Select a prop to place your first bet!</div>':S.bets.slice().reverse().map((b,i)=>`<div class="bet-item"><div class="br ${b.result}">${b.result==='win'?'W':b.result==='loss'?'L':'⏳'}</div><div class="bi-i"><div class="bi-d">${b.description}</div><div class="bi-dt">${new Date(b.date).toLocaleDateString()} · ${b.odds} @ ${b.book} · ${b.confidence}/100</div></div><div class="bi-r"><div class="bi-a">$${b.amount}</div>${b.result==='pending'?`<div><button class="rb w" onclick="resolve(${S.bets.length-1-i},'win')">W</button><button class="rb l" onclick="resolve(${S.bets.length-1-i},'loss')">L</button></div>`:`<div class="bi-p ${b.pnl>=0?'pos':'neg'}">${b.pnl>=0?'+':''}$${b.pnl}</div>`}</div></div>`).join('')}</div>
+      <div class="rules" style="margin-top:12px"><div class="rl"><div class="rln">1</div><div class="rlt"><strong>2% units</strong> · $${u}</div></div><div class="rl"><div class="rln">2</div><div class="rlt"><strong>5/day</strong></div></div><div class="rl"><div class="rln">3</div><div class="rlt"><strong>50% stop</strong></div></div><div class="rl"><div class="rln">4</div><div class="rlt"><strong>🔥✅ only</strong></div></div></div>
+    </div>
+
+    <div class="page ${S.page==='settings'?'active':''}">
+      <div class="set-hd">💰 Bankroll</div><div class="set-s"><div class="set-r"><div class="set-l">Amount</div><div style="display:flex;gap:8px"><input class="set-in" type="number" id="bri" value="${S.bankroll}"/><button class="set-btn" onclick="S.bankroll=parseFloat(document.getElementById('bri').value)||1000;save();render()">Save</button></div></div><div class="set-r"><div class="set-l">Unit (2%)</div><div style="color:var(--accent);font-weight:700">$${u}</div></div></div>
+      <div class="set-hd">📱 SMS</div><div class="set-s"><div class="set-r"><div class="set-l">👨 Chad</div><input class="set-in" type="tel" id="sc" value="${SMS.chad}"/></div><div class="set-r"><div class="set-l">👨 Blake</div><input class="set-in" type="tel" id="sb" value="${SMS.blake}"/></div><div class="set-r"><div class="set-l">🧑 Noah</div><input class="set-in" type="tel" id="sn" value="${SMS.noah}"/></div><div class="set-r"><div class="set-l">Twilio SID</div><input class="set-in" type="password" id="ss" value="${SMS.sid}"/></div><div class="set-r"><div class="set-l">Auth</div><input class="set-in" type="password" id="sa" value="${SMS.auth}"/></div><div class="set-r"><div class="set-l">Phone</div><input class="set-in" type="tel" id="sf" value="${SMS.from}"/></div><div class="set-r"><div class="set-l">Status</div><span class="sp ${SMS.on?'on':'off'}"><span class="sd ${SMS.on?'on':'off'}"></span>${SMS.on?'Active':'Off'}</span></div><div class="set-r"><div></div><button class="set-btn" onclick="saveSMS()">Save</button></div></div>
+      <div class="set-hd">☁️ Database</div><div class="set-s"><div class="set-r"><div class="set-l">Supabase URL</div><input class="set-in" id="sbu" value="${SBC.url}"/></div><div class="set-r"><div class="set-l">Key</div><input class="set-in" type="password" id="sbk" value="${SBC.key}"/></div><div class="set-r"><div class="set-l">Status</div><span class="sp ${sb?'on':'off'}"><span class="sd ${sb?'on':'off'}"></span>${sb?'Connected':'Off'}</span></div><div class="set-r"><div></div><button class="set-btn bl" onclick="saveSB()">Connect</button></div></div>
+      <div class="set-hd">🔑 Odds API</div><div class="set-s"><div class="set-r"><div class="set-l">Requests Used</div><div style="color:var(--t2)">${S.apiUsed}</div></div><div class="set-r"><div class="set-l">Remaining</div><div style="color:var(--accent);font-weight:700">${S.apiRemaining}</div></div><div class="set-r"><div class="set-l">Last Fetch</div><div style="color:var(--t3)">${S.lastFetch?S.lastFetch.toLocaleTimeString():'Never'}</div></div></div>
+    </div>
+
+    <div class="bnav">
+      <div class="bnav-i ${S.page==='props'?'on':''}" onclick="nav('props')"><div class="bi">📊</div><div class="bl">Props</div>${fc?`<div class="badge">${fc}</div>`:''}</div>
+      <div class="bnav-i ${S.page==='search'?'on':''}" onclick="nav('search')"><div class="bi">🔍</div><div class="bl">Search</div></div>
+      <div class="bnav-i ${S.page==='bets'?'on':''}" onclick="nav('bets')"><div class="bi">📒</div><div class="bl">Bets</div></div>
+      <div class="bnav-i ${S.page==='settings'?'on':''}" onclick="nav('settings')"><div class="bi">⚙️</div><div class="bl">Settings</div></div>
+    </div>`;
+}
+
+function nav(p){S.page=p;render();window.scrollTo(0,0);}
+function toggleEx(id){if(S.expanded.has(id))S.expanded.delete(id);else{S.expanded.add(id);const p=S.props.find(x=>x.id===id);if(p)AI.track(p.player,p.sport,p.betType,'expanded',p.score);}render();}
+
+function openM(id){
+  const p=S.props.find(x=>x.id===id);if(!p)return;
+  AI.track(p.player,p.sport,p.betType,'selected',p.score);
+  const u=unit(),pay=calcPay(p.bestOdds,u);
+  document.getElementById('modal').innerHTML=`<div class="ms"><div class="ms-h"></div><div class="ms-head"><div class="ms-t">Confirm Bet</div><button class="ms-x" onclick="closeM()">✕</button></div><div class="ms-body"><div class="mp"><div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span class="tag sp ${p.sport}">${p.sport.toUpperCase()}</span>${p.isLive?'<span class="tag live">LIVE ODDS</span>':''}<span style="font-size:10px;font-weight:700;color:${p.tier==='fire'?'var(--gold)':'var(--accent)'}">${p.score}/100</span></div><div class="mp-n">${p.player}</div><div class="mp-d">${p.prop} · ${p.game}</div><div class="mp-r"><div class="mp-b">@ ${p.bestBook}</div><div class="mp-o">${p.bestOdds}</div></div></div><div class="mfs"><div class="m-row"><div class="mf"><label>Wager</label><input type="number" id="ma" value="${u}" oninput="document.getElementById('mpy').textContent='+$'+calcPay('${p.bestOdds}',parseFloat(this.value)||0)"/></div><div class="mf"><label>Book</label><select id="mbk">${Object.keys(p.books||{}).concat(['DraftKings','FanDuel','BetMGM','Caesars','ESPN BET']).filter((v,i,a)=>a.indexOf(v)===i).map(b=>`<option ${b===p.bestBook?'selected':''}>${b}</option>`).join('')}</select></div></div><div class="m-py"><span class="pl">Profit</span><span class="pv" id="mpy">+$${pay}</span></div></div></div><div class="ms-ft"><button class="btn-c" onclick="closeM()">Cancel</button><button class="btn-k" onclick="confirmBet('${p.id}')">✓ Confirm</button></div></div>`;
+  document.getElementById('modal').classList.add('open');
+}
+function closeM(){document.getElementById('modal').classList.remove('open');}
+function confirmBet(id){
+  const p=S.props.find(x=>x.id===id);if(!p)return;
+  const amount=parseFloat(document.getElementById('ma').value),book=document.getElementById('mbk').value,pay=calcPay(p.bestOdds,amount);
+  const bet={description:`${p.player} ${p.prop}`,amount,odds:p.bestOdds,book,payout:pay,sport:p.sport,game:p.game,confidence:p.score,tier:p.tier,betType:p.betType,date:new Date().toISOString(),result:'pending',pnl:0};
+  S.bets.push(bet);AI.track(p.player,p.sport,p.betType,'bet',p.score);save();closeM();
+  toast('✅',`${p.player} — $${amount} logged`);
+  if(SMS.on){const msg=`🎯 PropEdge LIVE\n${bet.description}\n${bet.odds} @ ${bet.book}\n$${amount} → $${pay}\nScore: ${bet.confidence}/100`;[SMS.chad,SMS.blake,SMS.noah].forEach(n=>sendSMS(n,msg));}
+  render();
+}
+function resolve(i,res){
+  const b=S.bets[i];b.result=res;const player=b.description.split(' Over')[0]||b.description;
+  if(res==='win'){b.pnl=calcPay(b.odds||'+100',b.amount);S.bankroll+=b.pnl;AI.recordOutcome(player,b.sport||'nba',b.betType||'points','win');}
+  else{b.pnl=-b.amount;S.bankroll-=b.amount;AI.recordOutcome(player,b.sport||'nba',b.betType||'points','loss');}
+  save();render();toast(res==='win'?'💰':'📉',`${b.description}: ${b.pnl>=0?'+':''}$${b.pnl}`);
+}
+function saveSMS(){SMS.chad=document.getElementById('sc').value;SMS.blake=document.getElementById('sb').value;SMS.noah=document.getElementById('sn').value;SMS.sid=document.getElementById('ss').value;SMS.auth=document.getElementById('sa').value;SMS.from=document.getElementById('sf').value;SMS.on=!!(SMS.sid&&SMS.auth&&SMS.from);localStorage.setItem('pe_sms',JSON.stringify(SMS));render();toast('📱',SMS.on?'SMS on':'Saved');}
+function saveSB(){SBC.url=document.getElementById('sbu').value;SBC.key=document.getElementById('sbk').value;localStorage.setItem('pe_sb',JSON.stringify(SBC));initSB()?toast('☁️','Connected'):toast('⚠️','Check creds');render();}
+
+// INIT
+render();
+fetchLiveProps();
+</script>
+</body>
+</html>
