@@ -418,12 +418,12 @@ function render(){
     <div class="topbar"><div class="topbar-l"><div class="logo-m">PE</div><div class="topbar-t">Prop<span>Edge</span></div></div><div class="topbar-r"><div class="ts"><div class="tl">Unit</div><div class="tv am">$${u}</div></div><div class="ts"><div class="tl">Bank</div><div class="tv">$${S.bankroll.toLocaleString()}</div></div></div></div>
 
     <div class="page ${S.page==='props'?'active':''}">
-      <div class="live-strip"><div class="live-info"><span class="live-dot ${S.props.some(p=>p.isLive)?'on':'off'}"></span>${S.props.some(p=>p.isLive)?`<strong>LIVE</strong>&nbsp;· ${S.props.length} props from ${S.props.filter(p=>p.isLive).length>0?[...new Set(S.props.map(p=>p.sport.toUpperCase()))].join(', '):'—'}`:'Loading...'}</div><div style="display:flex;align-items:center;gap:8px"><span class="live-remaining">${S.apiRemaining} req left</span><button class="refresh-btn" onclick="localStorage.removeItem('pe_cache');fetchLiveProps(true)">↻ Refresh</button></div></div>
+      <div class="live-strip"><div class="live-info"><span class="live-dot ${S.props.length>0?'on':'off'}"></span>${S.loading&&S.props.length>0?'<strong>Updating...</strong>':S.props.length>0?`<strong>LIVE</strong>&nbsp;· ${S.props.length} props · ${[...new Set(S.props.map(p=>p.sport.toUpperCase()))].join(', ')}`:'No props yet — tap Refresh'}</div><div style="display:flex;align-items:center;gap:8px"><span class="live-remaining">${S.apiRemaining} left</span><button class="refresh-btn" onclick="localStorage.removeItem('pe_cache');fetchLiveProps(true)">↻ Refresh</button></div></div>
       ${ins.hasData?`<div class="ai-strip"><div class="ai-icon">🤖</div><div class="ai-body"><div class="ai-t">AI Personalized</div><div class="ai-s">Boosting based on ${S.bets.length} bets</div><div class="ai-chips">${topP.map(n=>`<span class="ai-chip">⭐ ${n}</span>`).join('')}</div></div></div>`:''}
       ${fc>0?`<div class="fire-alert"><div class="fa-i">🔥</div><div class="fa-b"><div class="fa-t">Fire Picks</div><div class="fa-s">${fc} high-confidence live props</div></div><div class="fa-c">${fc}</div></div>`:''}
       <div class="qstats"><div class="qs"><div class="qsl">Today</div><div class="qsv">${r.w}-${r.l}</div><div class="qss">${r.p} live</div></div><div class="qs"><div class="qsl">Record</div><div class="qsv">${a.w}-${a.l}</div></div><div class="qs"><div class="qsl">P&L</div><div class="qsv" style="color:${p>=0?'var(--accent)':'var(--red)'}">${p>=0?'+':''}$${p.toFixed(0)}</div></div><div class="qs"><div class="qsl">Units</div><div class="qsv">${r.t}/5</div></div></div>
       <div class="pills">${['all','foryou','nba','ncaab','nfl','ncaaf'].map(s=>`<div class="pill ${S.sport===s?'on':''}" data-s="${s}" onclick="S.sport='${s}';render()">${s==='all'?'All':s==='foryou'?'🤖 For You':s.toUpperCase()}</div>`).join('')}</div>
-      ${S.loading?'<div class="loading"><div class="spinner"></div><br>Fetching live odds...</div>':''}
+      ${S.loading&&S.props.length===0?'<div class="loading"><div class="spinner"></div><br>Fetching live odds...</div>':''}
       ${!S.loading&&S.props.length===0?'<div class="empty">No live props available right now. Hit refresh to check again.</div>':''}
       ${fire.length?`<div class="sec-label fire">🔥 Fire <span class="sc">${fire.length}</span></div>${fire.map(pc).join('')}`:''}
       ${reco.length&&S.sport!=='foryou'?`<div class="sec-label reco">🤖 For You <span class="sc">${reco.length}</span></div>${reco.map(pc).join('')}`:''}
@@ -486,9 +486,14 @@ function resolve(i,res){
 function saveSMS(){SMS.chad=document.getElementById('sc').value;SMS.blake=document.getElementById('sb').value;SMS.noah=document.getElementById('sn').value;SMS.sid=document.getElementById('ss').value;SMS.auth=document.getElementById('sa').value;SMS.from=document.getElementById('sf').value;SMS.on=!!(SMS.sid&&SMS.auth&&SMS.from);localStorage.setItem('pe_sms',JSON.stringify(SMS));render();toast('📱',SMS.on?'SMS on':'Saved');}
 function saveSB(){SBC.url=document.getElementById('sbu').value;SBC.key=document.getElementById('sbk').value;localStorage.setItem('pe_sb',JSON.stringify(SBC));initSB()?toast('☁️','Connected'):toast('⚠️','Check creds');render();}
 
-// INIT
+// INIT — show cached data instantly, then fetch in background
+const _cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
+if(_cache&&_cache.props&&_cache.props.length>0){
+  S.props=_cache.props;S.apiUsed=_cache.used||0;S.apiRemaining=_cache.remaining||500;S.lastFetch=new Date(_cache.ts);
+}
 render();
-fetchLiveProps();
+// Fetch fresh data in background (won't block UI)
+setTimeout(()=>fetchLiveProps(),500);
 </script>
 </body>
 </html>
