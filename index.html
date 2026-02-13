@@ -432,8 +432,8 @@ function render(){
     </div>
 
     <div class="page ${S.page==='search'?'active':''}">
-      <div class="search-wrap"><div class="search-box"><span style="font-size:18px">🔍</span><input placeholder="Search players..." value="${S.searchQuery}" oninput="S.searchQuery=this.value;S.selectedPlayer=null;render()"/><span class="search-clear ${S.searchQuery?'show':''}" onclick="S.searchQuery='';S.selectedPlayer=null;render()">✕</span></div></div>
-      ${searchHTML}
+      <div class="search-wrap"><div class="search-box"><span style="font-size:18px">🔍</span><input id="searchInput" placeholder="Search players..." value="${S.searchQuery}" oninput="S.searchQuery=this.value;S.selectedPlayer=null;renderSearch()"/><span class="search-clear ${S.searchQuery?'show':''}" onclick="S.searchQuery='';S.selectedPlayer=null;render()">✕</span></div></div>
+      <div id="searchResults">${searchHTML}</div>
     </div>
 
     <div class="page ${S.page==='bets'?'active':''}">
@@ -458,6 +458,15 @@ function render(){
 }
 
 function nav(p){S.page=p;render();window.scrollTo(0,0);}
+function renderSearch(){
+  const el=document.getElementById('searchResults');
+  if(!el)return;
+  const q=S.searchQuery.toLowerCase();
+  const grouped={};
+  S.props.forEach(p=>{if(q&&!p.player.toLowerCase().includes(q))return;if(!grouped[p.player])grouped[p.player]={player:p.player,sport:p.sport,emoji:p.emoji,count:0};grouped[p.player].count++;});
+  const list=Object.values(grouped);
+  el.innerHTML=list.length?`<div class="sr-list">${list.map(r=>`<div class="sr-p" onclick="S.selectedPlayer='${r.player.replace(/'/g,"\\'")}';render()"><div class="sr-av ${r.sport}">${r.emoji}</div><div class="sr-info"><div class="sr-name">${r.player}</div><div class="sr-team">${r.sport.toUpperCase()}</div></div><div class="sr-ct">${r.count} props →</div></div>`).join('')}</div>`:'<div class="empty">No players found</div>';
+}
 function toggleEx(id){if(S.expanded.has(id))S.expanded.delete(id);else{S.expanded.add(id);const p=S.props.find(x=>x.id===id);if(p)AI.track(p.player,p.sport,p.betType,'expanded',p.score);}render();}
 
 function openM(id){
