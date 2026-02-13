@@ -267,147 +267,85 @@ function sportEmoji(s){return{nba:'🏀',ncaab:'🎓',nfl:'🏈',ncaaf:'🎓🏈
 
 async function fetchLiveProps(forceRefresh){
   S.loading=true;render();
-  const allProps=[];
   const cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
   const cacheAge=cache?Date.now()-cache.ts:Infinity;
-
-  // Use cache if less than 15 min old (unless force refresh)
   if(!forceRefresh&&cache&&cacheAge<900000){
-    S.props=cache.props;S.apiUsed=cache.used;S.apiRemaining=cache.remaining;S.lastFetch=new Date(cache.ts);S.loading=false;render();return;
+    S.props=cache.props;S.apiUsed=cache.used||0;S.apiRemaining=cache.remaining||500;S.lastFetch=new Date(cache.ts);S.loading=false;render();return;
   }
-
-  // Timeout helper — abort after 8 seconds
-  function fetchTO(url,ms=8000){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(t));}
-
-  try{
+  const globalTimeout=new Promise(r=>setTimeout(()=>r('TIMEOUT'),20000));
+  const fetchAll=async()=>{
+    const allProps=[];
     for(const sp of SPORTS){
       try{
-      // 1. Get events
-      const evResp=await fetchTO(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
-      if(!evResp.ok)continue;
-      const events=await evResp.json();
-      if(!events||events.length===0)continue;// Skip sports with no events
-      S.apiUsed=parseInt(evResp.headers.get('x-requests-used'))||S.apiUsed;
-      S.apiRemaining=parseInt(evResp.headers.get('x-requests-remaining'))||S.apiRemaining;
-
-      // 2. For each event (limit to 3 per sport to conserve requests)
-      const topEvents=events.slice(0,3);
-      for(const ev of topEvents){
-        if(S.apiRemaining<10){toast('⚠️','Low API quota');break;}
-        try{
-          const oddsResp=await fetchTO(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
-          if(!oddsResp.ok)continue;
-          const oddsData=await oddsResp.json();
-          if(!oddsData||!oddsData.bookmakers||oddsData.bookmakers.length===0)continue;// Skip events with no odds
-          S.apiUsed=parseInt(oddsResp.headers.get('x-requests-used'))||S.apiUsed;
-          S.apiRemaining=parseInt(oddsResp.headers.get('x-requests-remaining'))||S.apiRemaining;
-
-          // 3. Parse into prop objects
-          const propsByPlayer={};
-          for(const bk of(oddsData.bookmakers||[])){
-            for(const mkt of bk.markets){
-              for(const o of mkt.outcomes){
-                if(o.name!=='Over')continue;
-                const key=`${o.description}|${mkt.key}|${o.point}`;
-                if(!propsByPlayer[key]){
-                  propsByPlayer[key]={
-                    player:o.description,
-                    prop:`Over ${o.point} ${mapMarket(mkt.key).replace(/([A-Z])/g,' $1').replace('Yards','Yds').trim()}`,
-                    line:o.point,
-                    market:mkt.key,
-                    betType:mapMarket(mkt.key),
-                    sport:sp.sport,
-                    emoji:sportEmoji(sp.sport),
-                    game:`${ev.away_team.split(' ').pop()} vs ${ev.home_team.split(' ').pop()} • ${new Date(ev.commence_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`,
-                    books:{},bestOdds:-999,bestBook:'',
-                    id:Math.random().toString(36).substr(2,8)
-                  };
-                }
-                propsByPlayer[key].books[bk.title]=o.price;
-                if(o.price>propsByPlayer[key].bestOdds){
-                  propsByPlayer[key].bestOdds=o.price;
-                  propsByPlayer[key].bestBook=bk.title;
-                }
-              }
+        const evR=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events?apiKey=${API_KEY}`);
+        if(!evR.ok)continue;
+        const evs=await evR.json();
+        if(!Array.isArray(evs)||evs.length===0)continue;
+        S.apiUsed=parseInt(evR.headers.get('x-requests-used'))||S.apiUsed;
+        S.apiRemaining=parseInt(evR.headers.get('x-requests-remaining'))||S.apiRemaining;
+        const now=Date.now();
+        const validEvents=evs.filter(e=>{const t=new Date(e.commence_time).getTime();return t>now-10800000;}).slice(0,3);
+        if(validEvents.length===0)continue;
+        for(const ev of validEvents){
+          if(S.apiRemaining<10)break;
+          try{
+            const oR=await fetch(`https://api.the-odds-api.com/v4/sports/${sp.key}/events/${ev.id}/odds?apiKey=${API_KEY}&regions=us&markets=${sp.markets}&oddsFormat=american&bookmakers=${BOOKS}`);
+            if(!oR.ok)continue;
+            const od=await oR.json();
+            S.apiUsed=parseInt(oR.headers.get('x-requests-used'))||S.apiUsed;
+            S.apiRemaining=parseInt(oR.headers.get('x-requests-remaining'))||S.apiRemaining;
+            if(!od||!od.bookmakers||od.bookmakers.length===0)continue;
+            const byP={};
+            for(const bk of od.bookmakers){for(const mkt of bk.markets){for(const o of mkt.outcomes){
+              if(o.name!=='Over'||!o.description||o.point==null)continue;
+              const k=`${o.description}|${mkt.key}|${o.point}`;
+              if(!byP[k])byP[k]={player:o.description,prop:`Over ${o.point} ${mapMarket(mkt.key).replace(/([A-Z])/g,' $1').replace('Yards','Yds').trim()}`,line:o.point,market:mkt.key,betType:mapMarket(mkt.key),sport:sp.sport,emoji:sportEmoji(sp.sport),game:`${ev.away_team.split(' ').pop()} vs ${ev.home_team.split(' ').pop()} \u2022 ${new Date(ev.commence_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`,books:{},bestOdds:-999,bestBook:'',id:Math.random().toString(36).substr(2,8)};
+              byP[k].books[bk.title]=o.price;
+              if(o.price>byP[k].bestOdds){byP[k].bestOdds=o.price;byP[k].bestBook=bk.title;}
+            }}}
+            for(const p of Object.values(byP)){
+              if(Object.keys(p.books).length<2)continue;
+              const bkO=Object.entries(p.books),sorted=bkO.sort((a,b)=>b[1]-a[1]),spread=sorted[0][1]-sorted[sorted.length-1][1];
+              const avg=bkO.reduce((s,[_,v])=>s+v,0)/bkO.length;
+              const evEst=parseFloat(((p.bestOdds-avg)/Math.abs(avg||1)*100).toFixed(1));
+              let score=0;const reasons=[];
+              if(evEst>=4){score+=25;reasons.push(`+${evEst.toFixed(1)}% EV`);}else if(evEst>=2){score+=15;reasons.push(`+${evEst.toFixed(1)}% EV`);}else if(evEst>0)score+=8;
+              if(spread>=25){score+=20;reasons.push(`${spread}pt gap`);}else if(spread>=15)score+=12;else if(spread>=8)score+=6;
+              if(bkO.length>=4){score+=10;reasons.push(`${bkO.length} books`);}else if(bkO.length>=3)score+=5;
+              if(p.bestOdds>0){score+=5;if(p.bestOdds>=130){score+=5;reasons.push(`+${p.bestOdds} value`);}}
+              const aiB=AI.getBoost(p);score=Math.min(score+aiB.boost,100);reasons.push(...aiB.reasons);
+              const tier=score>=65?'fire':score>=40?'strong':score>=20?'decent':'skip';
+              const otherOdds=sorted.filter(([b])=>b!==p.bestBook).slice(0,3).map(([b,o])=>({book:b,odds:o}));
+              const fmt=v=>v>=0?`+${v}`:`${v}`;
+              const last10=[];for(let i=0;i<10;i++){const d=new Date();d.setDate(d.getDate()-(i*3+Math.floor(Math.random()*2)));const vr=p.line*.3;const act=Math.max(0,Math.round((p.line+(Math.random()*vr*2-vr))*10)/10);last10.push({date:d,opponent:['LAL','BOS','GSW','PHX','DAL','MIL','CHI','NYK'][Math.floor(Math.random()*8)],statValue:act,hit:act>=p.line});}
+              allProps.push({...p,bestOdds:fmt(p.bestOdds),bestOddsRaw:p.bestOdds,otherOdds,ev:evEst,oddsSpread:spread,score,tier,reasons,aiBoost:aiB.boost,isRecommended:aiB.isRecommended,hitRate:last10.filter(g=>g.hit).length*10,last10,isLive:true});
             }
-          }
-
-          // 4. Score & convert
-          for(const p of Object.values(propsByPlayer)){
-            if(Object.keys(p.books).length<2)continue;// Need 2+ books to compare
-
-            const bookOdds=Object.entries(p.books);
-            const sortedOdds=bookOdds.sort((a,b)=>b[1]-a[1]);
-            const oddsSpread=sortedOdds[0][1]-sortedOdds[sortedOdds.length-1][1];
-
-            // EV estimate (simplified: best odds vs avg)
-            const avgOdds=bookOdds.reduce((s,[_,v])=>s+v,0)/bookOdds.length;
-            const evEst=parseFloat(((p.bestOdds-avgOdds)/Math.abs(avgOdds||1)*100).toFixed(1));
-
-            // Confidence scoring
-            let score=0;
-            const reasons=[];
-            if(evEst>=4){score+=25;reasons.push(`+${evEst.toFixed(1)}% EV edge`);}
-            else if(evEst>=2){score+=15;reasons.push(`+${evEst.toFixed(1)}% EV`);}
-            else if(evEst>0)score+=8;
-
-            if(oddsSpread>=25){score+=20;reasons.push(`${oddsSpread}pt odds gap`);}
-            else if(oddsSpread>=15){score+=12;}
-            else if(oddsSpread>=8)score+=6;
-
-            if(bookOdds.length>=4){score+=10;reasons.push(`${bookOdds.length} books agree`);}
-            else if(bookOdds.length>=3)score+=5;
-
-            // Positive odds bonus
-            if(p.bestOdds>0){score+=5;if(p.bestOdds>=130){score+=5;reasons.push(`+${p.bestOdds} value`);}}
-
-            // AI boost
-            const aiB=AI.getBoost(p);
-            score=Math.min(score+aiB.boost,100);
-            reasons.push(...aiB.reasons);
-
-            const tier=score>=65?'fire':score>=40?'strong':score>=20?'decent':'skip';
-            const otherOdds=sortedOdds.filter(([b])=>b!==p.bestBook).slice(0,3).map(([b,o])=>({book:b,odds:o}));
-            const fmtOdds=(v)=>v>=0?`+${v}`:`${v}`;
-
-            // Generate simulated last-10 (until we add a stats API)
-            const last10=[];for(let i=0;i<10;i++){const d=new Date();d.setDate(d.getDate()-(i*3+Math.floor(Math.random()*2)));const vr=p.line*.3;const actual=Math.max(0,Math.round((p.line+(Math.random()*vr*2-vr))*10)/10);last10.push({date:d,opponent:['LAL','BOS','GSW','PHX','DAL','MIL','CHI','NYK'][Math.floor(Math.random()*8)],statValue:actual,hit:actual>=p.line});}
-
-            allProps.push({
-              ...p,
-              bestOdds:fmtOdds(p.bestOdds),bestOddsRaw:p.bestOdds,
-              otherOdds,ev:evEst,oddsSpread,
-              score,tier,reasons,
-              aiBoost:aiB.boost,isRecommended:aiB.isRecommended,
-              hitRate:last10.filter(g=>g.hit).length*10,
-              last10,isLive:true
-            });
-          }
-        }catch(e){console.error('Event fetch error:',e);}
-      }
-      }catch(e){console.error('Sport fetch error:',sp.key,e);}// end sport try
+          }catch(e){console.warn('Event skip:',ev.id,e.message);}
+        }
+      }catch(e){console.warn('Sport skip:',sp.key,e.message);}
     }
-
-    if(allProps.length>0){
-      S.props=allProps.sort((a,b)=>b.score-a.score);
+    return allProps;
+  };
+  try{
+    const result=await Promise.race([fetchAll(),globalTimeout]);
+    if(result==='TIMEOUT'){
+      if(cache){S.props=cache.props;toast('\u23F1\uFE0F','Timeout \u2014 showing cached props');}
+      else toast('\u23F1\uFE0F','Fetch timed out');
+    }else if(Array.isArray(result)&&result.length>0){
+      S.props=result.sort((a,b)=>b.score-a.score);
       localStorage.setItem('pe_cache',JSON.stringify({props:S.props,ts:Date.now(),used:S.apiUsed,remaining:S.apiRemaining}));
-      toast('✅',`${allProps.length} live props loaded`);
-    } else if(cache){
-      S.props=cache.props;
-      toast('📋','No new data — showing cached props');
-    } else {
-      toast('⚠️','No props available right now');
-    }
+      toast('\u2705',`${result.length} live props loaded`);
+    }else if(cache){
+      S.props=cache.props;toast('\uD83D\uDCCB','No new props \u2014 showing cached');
+    }else{toast('\u26A0\uFE0F','No props available right now');}
     S.lastFetch=new Date();
   }catch(e){
-    console.error('API error:',e);
+    console.error('Fatal:',e);
     if(cache)S.props=cache.props;
-    toast('⚠️','API error — showing cached data');
+    toast('\u26A0\uFE0F','Error \u2014 showing cached data');
   }
-  S.loading=false;
-  render();
+  S.loading=false;render();
 }
-
 // ===== UTILS =====
 function calcPay(o,a){const v=parseInt(o);return v>0?Math.round(a*(v/100)):Math.round(a*(100/Math.abs(v)));}
 function toast(i,t){const c=document.getElementById('tc');const e=document.createElement('div');e.className='toast';e.innerHTML=`<span class="toast-i">${i}</span><span class="toast-t">${t}</span>`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}
