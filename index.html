@@ -207,14 +207,77 @@ body{background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,sans-ser
 .toast-i{font-size:16px}.toast-t{font-size:12px;font-weight:600}
 
 @media(min-width:600px){body{max-width:500px;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}.bnav{max-width:500px;left:50%;transform:translateX(-50%)}}
+/* PIN Lock Screen */
+#lockscreen{background:var(--bg);position:fixed;inset:0;z-index:9999}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--t3);transition:all .15s}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px rgba(0,229,137,.4)}
+.pin-btn{width:72px;height:72px;border-radius:50%;border:1px solid var(--border2);background:var(--card);color:var(--t1);font-size:24px;font-weight:600;cursor:pointer;transition:all .1s;font-family:'Inter',sans-serif}
+.pin-btn:active{background:var(--accent);color:var(--bg);transform:scale(.95)}
+.pin-shake{animation:shake .4s ease-in-out}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="lockscreen">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:20px">
+    <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#00e589,#00b4d8);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#0f1923;margin-bottom:16px">PE</div>
+    <div style="font-size:22px;font-weight:800;margin-bottom:4px">Prop<span style="color:#00e589">Edge</span></div>
+    <div style="font-size:13px;color:#6b8299;margin-bottom:32px">Noah's Betting Lab</div>
+    <div style="display:flex;gap:12px;margin-bottom:20px" id="pinDots">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div id="pinError" style="color:#ff5a5a;font-size:12px;font-weight:600;height:20px;margin-bottom:12px"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,72px);gap:10px">
+      <button class="pin-btn" onclick="pinInput('1')">1</button>
+      <button class="pin-btn" onclick="pinInput('2')">2</button>
+      <button class="pin-btn" onclick="pinInput('3')">3</button>
+      <button class="pin-btn" onclick="pinInput('4')">4</button>
+      <button class="pin-btn" onclick="pinInput('5')">5</button>
+      <button class="pin-btn" onclick="pinInput('6')">6</button>
+      <button class="pin-btn" onclick="pinInput('7')">7</button>
+      <button class="pin-btn" onclick="pinInput('8')">8</button>
+      <button class="pin-btn" onclick="pinInput('9')">9</button>
+      <button class="pin-btn" style="visibility:hidden"></button>
+      <button class="pin-btn" onclick="pinInput('0')">0</button>
+      <button class="pin-btn" onclick="pinDelete()">←</button>
+    </div>
+  </div>
+</div>
+<div id="app" style="display:none"></div>
 <div class="mo" id="modal"></div>
 <div id="tc"></div>
 
 <script>
+// ===== PIN LOCK =====
+const PIN_CODE='2026';// Change this to your PIN
+let _pin='';
+function pinInput(n){
+  if(_pin.length>=4)return;
+  _pin+=n;
+  updateDots();
+  if(_pin.length===4){
+    if(_pin===PIN_CODE){
+      localStorage.setItem('pe_auth','1');
+      unlockApp();
+    }else{
+      document.getElementById('pinDots').classList.add('pin-shake');
+      document.getElementById('pinError').textContent='Wrong PIN';
+      setTimeout(()=>{_pin='';updateDots();document.getElementById('pinDots').classList.remove('pin-shake');document.getElementById('pinError').textContent='';},600);
+    }
+  }
+}
+function pinDelete(){if(_pin.length>0){_pin=_pin.slice(0,-1);updateDots();}}
+function updateDots(){document.querySelectorAll('.pin-dot').forEach((d,i)=>{d.classList.toggle('filled',i<_pin.length);});}
+function unlockApp(){
+  document.getElementById('lockscreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  initApp();
+}
+// Auto-unlock if previously authenticated this session
+if(localStorage.getItem('pe_auth')==='1'){
+  document.addEventListener('DOMContentLoaded',()=>unlockApp());
+}
+
 // =========================================================
 // PROPEDGE v5 LIVE — Real Odds API + AI Betting Assistant
 // =========================================================
@@ -349,7 +412,7 @@ async function fetchLiveProps(forceRefresh){
 // ===== UTILS =====
 function calcPay(o,a){const v=parseInt(o);return v>0?Math.round(a*(v/100)):Math.round(a*(100/Math.abs(v)));}
 function toast(i,t){const c=document.getElementById('tc');const e=document.createElement('div');e.className='toast';e.innerHTML=`<span class="toast-i">${i}</span><span class="toast-t">${t}</span>`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}
-async function sendSMS(to,body){try{await fetch('/api/sms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:body})});}catch(e){console.warn('SMS error:',e);}}
+async function sendSMS(to,body){try{await fetch('/api/sms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:body,pin:PIN_CODE})});}catch(e){console.warn('SMS error:',e);}}
 
 // ===== RENDER =====
 function render(){
@@ -538,14 +601,15 @@ function resolve(i,res){
 function saveSMS(){SMS.chad=document.getElementById('sc').value;SMS.blake=document.getElementById('sb').value;SMS.noah=document.getElementById('sn').value;SMS.sid=document.getElementById('ss').value;SMS.auth=document.getElementById('sa').value;SMS.from=document.getElementById('sf').value;SMS.on=!!(SMS.sid&&SMS.auth&&SMS.from);localStorage.setItem('pe_sms',JSON.stringify(SMS));render();toast('📱',SMS.on?'SMS on':'Saved');}
 function saveSB(){SBC.url=document.getElementById('sbu').value;SBC.key=document.getElementById('sbk').value;localStorage.setItem('pe_sb',JSON.stringify(SBC));initSB()?toast('☁️','Connected'):toast('⚠️','Check creds');render();}
 
-// INIT — show cached data instantly, then fetch in background
-const _cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
-if(_cache&&_cache.props&&_cache.props.length>0){
-  S.props=_cache.props;S.apiUsed=_cache.used||0;S.apiRemaining=_cache.remaining||500;S.lastFetch=new Date(_cache.ts);
+// INIT — wrapped in function, called after PIN unlock
+function initApp(){
+  const _cache=JSON.parse(localStorage.getItem('pe_cache')||'null');
+  if(_cache&&_cache.props&&_cache.props.length>0){
+    S.props=_cache.props;S.apiUsed=_cache.used||0;S.apiRemaining=_cache.remaining||500;S.lastFetch=new Date(_cache.ts);
+  }
+  render();
+  setTimeout(()=>fetchLiveProps(),500);
 }
-render();
-// Fetch fresh data in background (won't block UI)
-setTimeout(()=>fetchLiveProps(),500);
 </script>
 </body>
 </html>
