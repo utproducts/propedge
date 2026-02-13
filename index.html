@@ -432,7 +432,7 @@ function render(){
     </div>
 
     <div class="page ${S.page==='search'?'active':''}">
-      <div class="search-wrap"><div class="search-box"><span style="font-size:18px">🔍</span><input id="searchInput" placeholder="Search players..." value="${S.searchQuery}" oninput="S.searchQuery=this.value;S.selectedPlayer=null;renderSearch()"/><span class="search-clear ${S.searchQuery?'show':''}" onclick="S.searchQuery='';S.selectedPlayer=null;render()">✕</span></div></div>
+      <div class="search-wrap"><div class="search-box"><span style="font-size:18px">🔍</span><input id="searchInput" placeholder="Search players..." oninput="handleSearch(this.value)"/><span class="search-clear ${S.searchQuery?'show':''}" onclick="clearSearch()">✕</span></div></div>
       <div id="searchResults">${searchHTML}</div>
     </div>
 
@@ -455,17 +455,60 @@ function render(){
       <div class="bnav-i ${S.page==='bets'?'on':''}" onclick="nav('bets')"><div class="bi">📒</div><div class="bl">Bets</div></div>
       <div class="bnav-i ${S.page==='settings'?'on':''}" onclick="nav('settings')"><div class="bi">⚙️</div><div class="bl">Settings</div></div>
     </div>`;
+  // After render: restore search input value (DOM was rebuilt)
+  const si=document.getElementById('searchInput');
+  if(si&&S.searchQuery){si.value=S.searchQuery;}
+  if(S.page==='search')renderSearch();
 }
 
 function nav(p){S.page=p;render();window.scrollTo(0,0);}
 function renderSearch(){
   const el=document.getElementById('searchResults');
   if(!el)return;
+  const u=unit();
+  if(S.selectedPlayer){
+    const pp=S.props.filter(x=>x.player===S.selectedPlayer);
+    const playerBets=S.bets.filter(b=>b.description.toLowerCase().includes(S.selectedPlayer.toLowerCase()));
+    function pc2(p){
+      const tc=p.tier==='fire'?'fc':p.tier==='strong'?'sc':'dc';
+      const ti=p.tier==='fire'?'🔥':p.tier==='strong'?'✅':'📊';
+      return`<div class="pc ${tc}"><div class="pc-m" onclick="toggleEx('${p.id}')"><div class="pc-av ${p.sport}">${p.emoji}<div class="pc-td">${ti}</div></div><div class="pc-i"><div class="pc-n">${p.player}</div><div class="pc-p">${p.prop}</div><div class="pc-tags"><span class="tag sp ${p.sport}">${p.sport.toUpperCase()}</span>${p.isLive?'<span class="tag live">LIVE</span>':''}</div><div class="pc-g">${p.game}</div></div><div class="pc-o"><div class="pc-ov">${p.bestOdds}</div><div class="pc-bk">${p.bestBook}</div><div class="pc-cs">${p.score}</div></div></div><div class="pc-bet" onclick="event.stopPropagation();openM('${p.id}')">💰 Bet · 1 Unit ($${u})</div></div>`;
+    }
+    let betHTML='';
+    if(playerBets.length>0){
+      betHTML=`<div class="sec-label" style="color:var(--t1)">📒 Bet History <span class="sc">${playerBets.length}</span></div><div style="margin:0 16px;background:var(--card);border-radius:14px;overflow:hidden">${playerBets.map(b=>`<div class="bet-item"><div class="br ${b.result}">${b.result==='win'?'W':b.result==='loss'?'L':'⏳'}</div><div class="bi-i"><div class="bi-d">${b.description}</div><div class="bi-dt">${new Date(b.date).toLocaleDateString()} · ${b.odds} @ ${b.book}</div></div><div class="bi-r"><div class="bi-a">$${b.amount}</div><div class="bi-p ${(b.pnl||0)>=0?'pos':'neg'}">${b.result==='pending'?'pending':(b.pnl>=0?'+':'')+`$${b.pnl}`}</div></div></div>`).join('')}</div>`;
+    }
+    const sportEmj=pp[0]?.emoji||playerBets[0]?.sport==='nba'?'🏀':playerBets[0]?.sport==='ncaab'?'🎓':'🏀';
+    const sportCls=pp[0]?.sport||playerBets[0]?.sport||'nba';
+    el.innerHTML=`<div class="ph"><div class="ph-back" onclick="S.selectedPlayer=null;renderSearch()">←</div><div class="ph-av ${sportCls}">${sportEmj}</div><div class="ph-info"><div class="ph-name">${S.selectedPlayer}</div><div class="ph-team">${pp.length} live props · ${playerBets.length} bets</div></div></div>${pp.length>0?`<div class="sec-label" style="color:var(--accent)">📊 Live Props <span class="sc">${pp.length}</span></div>`+pp.map(pc2).join(''):''}${betHTML}${pp.length===0&&playerBets.length===0?'<div class="empty">No live props or bets for this player</div>':''}`;
+    return;
+  }
   const q=S.searchQuery.toLowerCase();
   const grouped={};
-  S.props.forEach(p=>{if(q&&!p.player.toLowerCase().includes(q))return;if(!grouped[p.player])grouped[p.player]={player:p.player,sport:p.sport,emoji:p.emoji,count:0};grouped[p.player].count++;});
-  const list=Object.values(grouped);
-  el.innerHTML=list.length?`<div class="sr-list">${list.map(r=>`<div class="sr-p" onclick="S.selectedPlayer='${r.player.replace(/'/g,"\\'")}';render()"><div class="sr-av ${r.sport}">${r.emoji}</div><div class="sr-info"><div class="sr-name">${r.player}</div><div class="sr-team">${r.sport.toUpperCase()}</div></div><div class="sr-ct">${r.count} props →</div></div>`).join('')}</div>`:'<div class="empty">No players found</div>';
+  // Search live props
+  S.props.forEach(p=>{if(q&&!p.player.toLowerCase().includes(q))return;if(!grouped[p.player])grouped[p.player]={player:p.player,sport:p.sport,emoji:p.emoji,props:0,bets:0,src:'live'};grouped[p.player].props++;});
+  // Search bet history
+  S.bets.forEach(b=>{
+    const name=b.description.split(' Over')[0].split(' Under')[0].trim();
+    if(q&&!name.toLowerCase().includes(q))return;
+    if(!grouped[name])grouped[name]={player:name,sport:b.sport||'nba',emoji:b.sport==='nba'?'🏀':b.sport==='ncaab'?'🎓':b.sport==='nfl'?'🏈':'🏀',props:0,bets:0,src:'bets'};
+    grouped[name].bets++;
+  });
+  const list=Object.values(grouped).sort((a,b)=>(b.props+b.bets)-(a.props+a.bets));
+  el.innerHTML=list.length?`<div class="sr-list">${list.map(r=>`<div class="sr-p" onclick="S.selectedPlayer='${r.player.replace(/'/g,"\\'")}';renderSearch()"><div class="sr-av ${r.sport}">${r.emoji}</div><div class="sr-info"><div class="sr-name">${r.player}</div><div class="sr-team">${r.sport.toUpperCase()}${r.bets>0?' · '+r.bets+' bet'+(r.bets>1?'s':''):''}</div></div><div class="sr-ct">${r.props>0?r.props+' props':'history'} →</div></div>`).join('')}</div>`:'<div class="empty">No players found</div>';
+}
+let _searchTimer=null;
+function handleSearch(val){
+  S.searchQuery=val;
+  S.selectedPlayer=null;
+  clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(renderSearch,150);
+}
+function clearSearch(){
+  S.searchQuery='';S.selectedPlayer=null;
+  const inp=document.getElementById('searchInput');
+  if(inp)inp.value='';
+  renderSearch();
 }
 function toggleEx(id){if(S.expanded.has(id))S.expanded.delete(id);else{S.expanded.add(id);const p=S.props.find(x=>x.id===id);if(p)AI.track(p.player,p.sport,p.betType,'expanded',p.score);}render();}
 
